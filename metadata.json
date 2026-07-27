@@ -1,0 +1,6 @@
+{
+  "name": "Sarah Dental Clinic CRM",
+  "description": "Production-ready CRM command center for Sarah Dental Clinic synced with Vapi AI, n8n, Google Calendar, Google Sheets, and Supabase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
