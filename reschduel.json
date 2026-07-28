@@ -1,0 +1,347 @@
+{
+  "name": "reschduel",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "modify-appointment",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "140872ad-734a-4ab7-8532-4a47f9637609",
+      "name": "Webhook: modify-appointment",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        96
+      ],
+      "webhookId": "6a5cdfb8-88d9-46a4-b3c0-a7b224106bd8"
+    },
+    {
+      "parameters": {
+        "jsCode": "const toolCall = $input.first().json.body.message.toolCalls[0];\nconst args = toolCall.function['arguments'];\n\nreturn [{\n  json: {\n    toolCallId: toolCall.id,\n    action: args.action,\n    phone_number: args.phone_number,\n    new_date: args.new_date,\n    new_time: args.new_time\n  }\n}];"
+      },
+      "id": "ca2099fe-d49c-4cdd-aa47-ec0432117443",
+      "name": "Extract Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1SOGjWEe0kaMEupPzA0iFTXhw-J7B4JwCcwAZoSScTQA"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gid=0"
+        },
+        "options": {}
+      },
+      "id": "efe36d11-5cb6-4d9b-8f01-4776d1461280",
+      "name": "Google Sheets: Find Booking",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        96
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "oq6Bb7dnzLSfFm5s",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize phone numbers and match on the last 8 digits so that\n// country codes, +, spaces, dashes and leading zeros do not break the lookup.\nconst args = $('Extract Args').first().json;\nconst targetTail = String(args.phone_number || '').replace(/\\D/g, '').slice(-8);\n\nif (!targetTail) { return []; }\n\nconst matches = $input.all().filter(item => {\n  const p = String(item.json.Phone || '').replace(/\\D/g, '').slice(-8);\n  return p && p === targetTail;\n});\n\nreturn matches.map(item => ({\n  json: {\n    ...item.json,\n    toolCallId: args.toolCallId,\n    action: args.action,\n    new_date: args.new_date,\n    new_time: args.new_time,\n    event_id: item.json.event_id || item.json.Event_id || item.json.EventId || '',\n    email: item.json.email || item.json.Email || ''\n  }\n}));"
+      },
+      "id": "127b0bcb-ade7-45a8-af19-d84799ddf792",
+      "name": "Match Booking",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Extract Args').first().json.action }}",
+              "rightValue": "cancel",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "1af13f71-0598-4db1-8088-76cffad147b0"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "101104b6-9d6b-4b94-9090-01c6b71a0568",
+      "name": "If: Cancel or Reschedule",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        896,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "calendar": {
+          "__rl": true,
+          "value": "4738b4b306ba3e16c1b5b52253a61426394a3ef0b03d68f1881bcdb885c07d4d@group.calendar.google.com",
+          "mode": "id"
+        },
+        "eventId": "={{ $json.event_id }}",
+        "options": {}
+      },
+      "id": "21dd6119-bffc-4ca4-ac95-fd881ebe741a",
+      "name": "Google Calendar: Delete Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [
+        1568,
+        0
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "OmSuq4KaOjjovI0I",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"results\": [ { \"toolCallId\": $('Extract Args').first().json.toolCallId, \"result\": \"Your appointment has been updated successfully.\" } ] } }}",
+        "options": {}
+      },
+      "id": "c737a12f-1cdd-4f59-a9c2-36670bd29a11",
+      "name": "Respond: Modification Done",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1792,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "calendar": {
+          "__rl": true,
+          "value": "4738b4b306ba3e16c1b5b52253a61426394a3ef0b03d68f1881bcdb885c07d4d@group.calendar.google.com",
+          "mode": "id"
+        },
+        "eventId": "={{ $json.event_id }}",
+        "updateFields": {
+          "end": "={{ $('Extract Args').first().json.new_date }}T{{ $('Extract Args').first().json.new_time }}:00",
+          "start": "={{ $('Extract Args').first().json.new_date }}T{{ $('Extract Args').first().json.new_time }}:00"
+        }
+      },
+      "id": "6c5765d0-a3da-49ef-8193-e18708c4ddad",
+      "name": "Google Calendar: Update Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        192
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "OmSuq4KaOjjovI0I",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Match Booking').first().json.email }}",
+        "subject": "Your Appointment Has Been Rescheduled",
+        "message": "=<p>Dear patient,</p> <p>Your appointment has been rescheduled to:</p> <p><strong>New Date:</strong> {{ $('Extract Args').first().json.new_date }}<br> <strong>New Time:</strong> {{ $('Extract Args').first().json.new_time }}</p>",
+        "options": {}
+      },
+      "id": "618bf273-0815-49e7-a58f-c5ea3e91a6b6",
+      "name": "Send a message",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1344,
+        192
+      ],
+      "webhookId": "512a681b-c6d1-4267-bfd0-c2272f1c34ae",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Epdhsraixn7mmVJB",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "3257030790@c.us",
+        "quotedMessageId": "3EB098FC91C40A3CB66F63",
+        "message": "=Hi, your appointment at Sarah Dental Clinic has been rescheduled: New Date: {{ $('Extract Args').first().json.new_date }} New Time: {{ $('Extract Args').first().json.new_time }}"
+      },
+      "id": "8ca98b5b-0f4d-4828-b245-4a60c148af0c",
+      "name": "Send message",
+      "type": "@green-api/n8n-nodes-whatsapp-greenapi.greenapi",
+      "typeVersion": 1,
+      "position": [
+        1568,
+        192
+      ],
+      "credentials": {
+        "greenApiAuthApi": {
+          "id": "ofFxyGizEmRjpYKa",
+          "name": "Green-API account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook: modify-appointment": {
+      "main": [
+        [
+          {
+            "node": "Extract Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Args": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets: Find Booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets: Find Booking": {
+      "main": [
+        [
+          {
+            "node": "Match Booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Booking": {
+      "main": [
+        [
+          {
+            "node": "If: Cancel or Reschedule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If: Cancel or Reschedule": {
+      "main": [
+        [
+          {
+            "node": "Google Calendar: Delete Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google Calendar: Update Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar: Delete Event": {
+      "main": [
+        [
+          {
+            "node": "Respond: Modification Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar: Update Event": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Send message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send message": {
+      "main": [
+        [
+          {
+            "node": "Respond: Modification Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "798630a0-a7e3-47e1-b51f-f32d9229a89b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1ecf7c16de28e9cb51afa73998847b7e3ce52dec276fe111f4fa9de3fbab0e5b"
+  },
+  "nodeGroups": [],
+  "id": "ElarlAEpnH317nKs",
+  "tags": []
+}

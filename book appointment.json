@@ -1,0 +1,1354 @@
+{
+  "name": "book appointment",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "book-appointment",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "125c4f15-804d-4b5c-9250-0ae16268b32f",
+      "name": "Webhook: book-appointment",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        80
+      ],
+      "webhookId": "5accf431-d801-4f37-b226-75cd664243ea"
+    },
+    {
+      "parameters": {
+        "jsCode": "const toolCall = $input.first().json.body.message.toolCalls[0];\nconst args = toolCall.function['arguments'];\n\nconst startDateTime = new Date(`${args.date}T${args.time}:00`);\nconst endDateTime = new Date(startDateTime.getTime() + 30 * 60000);\nconst pad = n => String(n).padStart(2, '0');\nconst endTime = `${pad(endDateTime.getHours())}:${pad(endDateTime.getMinutes())}`;\n\nconst emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\nconst rawEmail = (args.email || \"\").toString().trim();\nconst validEmail = emailRegex.test(rawEmail) ? rawEmail : null;\n\n// Normalize phone for WATI: full international format, digits only, no '+', no leading 0.\nconst DEFAULT_COUNTRY_CODE = \"92\"; // Pakistan\nlet whatsappNumber = (args.phone_number || \"\").toString().replace(/\\D/g, \"\");\nif (whatsappNumber.startsWith(\"00\")) {\n  // 00 international prefix -> drop it\n  whatsappNumber = whatsappNumber.slice(2);\n} else if (whatsappNumber.startsWith(\"0\")) {\n  // Local format with trunk 0 -> replace with country code\n  whatsappNumber = DEFAULT_COUNTRY_CODE + whatsappNumber.slice(1);\n} else if (!whatsappNumber.startsWith(DEFAULT_COUNTRY_CODE)) {\n  // Bare local number without trunk 0 or country code -> prepend country code\n  whatsappNumber = DEFAULT_COUNTRY_CODE + whatsappNumber;\n}\nconst hasValidPhone = whatsappNumber.length >= 11;\n\nreturn [{\n  json: {\n    toolCallId: toolCall.id,\n    patient_name: args.patient_name,\n    phone_number: args.phone_number,\n    whatsapp_number: whatsappNumber,\n    has_valid_phone: hasValidPhone,\n    service_type: args.service_type,\n    date: args.date,\n    time: args.time,\n    end_time: endTime,\n    email: validEmail,\n    has_valid_email: validEmail !== null\n  }\n}];"
+      },
+      "id": "01cc36a8-611f-4322-be57-26c90b26f2b4",
+      "name": "Extract Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "4738b4b306ba3e16c1b5b52253a61426394a3ef0b03d68f1881bcdb885c07d4d@group.calendar.google.com",
+          "mode": "id"
+        },
+        "start": "={{ $json.date }}T{{ $json.time }}:00",
+        "end": "={{ $json.date }}T{{ $json.end_time }}:00",
+        "additionalFields": {
+          "description": "=Phone: {{ $json.phone_number }} | Email: {{ $json.email }}",
+          "summary": "={{ $json.service_type }} - {{ $json.patient_name }}"
+        }
+      },
+      "id": "59edc0b5-0092-4e5e-a7ec-f60735f5be14",
+      "name": "Google Calendar: Create Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        80
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "OmSuq4KaOjjovI0I",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1SOGjWEe0kaMEupPzA0iFTXhw-J7B4JwCcwAZoSScTQA",
+          "mode": "list",
+          "cachedResultName": "Bookings",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1SOGjWEe0kaMEupPzA0iFTXhw-J7B4JwCcwAZoSScTQA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1SOGjWEe0kaMEupPzA0iFTXhw-J7B4JwCcwAZoSScTQA/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $now }}",
+            "Patient_name": "={{ $('Extract Args').first().json.patient_name }}",
+            "Phone": "={{ $('Extract Args').first().json.phone_number }}",
+            "Service": "={{ $('Extract Args').first().json.service_type }}",
+            "Date": "={{ $('Extract Args').first().json.date }}",
+            "Time": "={{ $('Extract Args').first().json.time }}",
+            "Stastus": "booked",
+            " email": "={{$json.email}}",
+            " event id": "={{$json.event_id}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Patient_name",
+              "displayName": "Patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Service",
+              "displayName": "Service",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Time",
+              "displayName": "Time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Stastus",
+              "displayName": "Stastus",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " email",
+              "displayName": " email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " event id",
+              "displayName": " event id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "3075b272-ebcc-41b2-b361-ba927903df91",
+      "name": "Google Sheets: Log Booking",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        768,
+        80
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "oq6Bb7dnzLSfFm5s",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ba9949e7-a180-452d-ab85-7c78f8f53d57",
+              "leftValue": "={{ $('Extract Args').first().json.has_valid_email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "03cda9ce-5e97-446b-a77a-5c242653e97d",
+      "name": "Has Email",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1104,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Extract Args').first().json.email }}",
+        "subject": "Appointment Confirmed - Sarah Dental Clinic",
+        "message": "=<p>Dear {{ $('Extract Args').first().json.patient_name }},</p> <p>Your appointment at Sarah Dental Clinic is confirmed:</p> <p><strong>Service:</strong> {{ $('Extract Args').first().json.service_type }}<br> <strong>Date:</strong> {{ $('Extract Args').first().json.date }}<br> <strong>Time:</strong> {{ $('Extract Args').first().json.time }}</p> <p>See you soon!</p>",
+        "options": {}
+      },
+      "id": "83492bee-3d4f-4d0f-8576-9c1a72cc70f2",
+      "name": "Send a message",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1328,
+        0
+      ],
+      "webhookId": "f4f2ebe5-e3b9-4390-9eaf-6126408e962f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Epdhsraixn7mmVJB",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "3257030790@c.us",
+        "quotedMessageId": "3EB098FC91C40A3CB66F63",
+        "message": "=Hi {{ $('Extract Args').first().json.patient_name }}! Your appointment at Sarah Dental Clinic is confirmed: Service: {{ $('Extract Args').first().json.service_type }} Date: {{ $('Extract Args').first().json.date }} Time: {{ $('Extract Args').first().json.time }}"
+      },
+      "id": "9157ff0e-d808-4675-83b8-bdc796c61bd3",
+      "name": "Send message",
+      "type": "@green-api/n8n-nodes-whatsapp-greenapi.greenapi",
+      "typeVersion": 1,
+      "position": [
+        1552,
+        80
+      ],
+      "credentials": {
+        "greenApiAuthApi": {
+          "id": "ofFxyGizEmRjpYKa",
+          "name": "Green-API account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"results\": [ { \"toolCallId\": $('Extract Args').first().json.toolCallId, \"result\": \"Appointment booked successfully for \" + $('Extract Args').first().json.patient_name + \" on \" + $('Extract Args').first().json.date + \" at \" + $('Extract Args').first().json.time + \".\" } ] } }}",
+        "options": {}
+      },
+      "id": "719b370d-44f6-4352-a1ea-e378ca30664b",
+      "name": "Respond: Booking Confirmed",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1776,
+        80
+      ]
+    }
+  ],
+  "pinData": {
+    "Webhook: book-appointment": [
+      {
+        "json": {
+          "headers": {
+            "host": "kalisaaa.app.n8n.cloud",
+            "user-agent": "axios/1.8.3",
+            "content-length": "28578",
+            "accept": "application/json, text/plain, */*",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "54.200.75.105",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "US",
+            "cf-ray": "a209c2190ac14b48-PDX",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "cookie": "callId=019f985c-7034-7222-8d56-08b2d02f9d7f",
+            "x-call-id": "019f985c-7034-7222-8d56-08b2d02f9d7f",
+            "x-forwarded-for": "54.200.75.105, 172.68.175.86",
+            "x-forwarded-host": "kalisaaa.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-44-74757dc4f8-bjrsm",
+            "x-is-trusted": "yes",
+            "x-real-ip": "54.200.75.105",
+            "x-vapi-secret": ""
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "message": {
+              "timestamp": 1784967760641,
+              "type": "tool-calls",
+              "toolCalls": [
+                {
+                  "id": "call_VlHIPL3JQr6PRjLx0buII0Y8",
+                  "type": "function",
+                  "function": {
+                    "name": "book_appointment",
+                    "arguments": {
+                      "date": "2024-06-03",
+                      "time": "12:00",
+                      "email": "حمزہ قدیر@gmail.com",
+                      "patient_name": "حمزہ قدیر",
+                      "phone_number": "03257030790",
+                      "service_type": "Teeth Cleaning"
+                    }
+                  }
+                }
+              ],
+              "toolCallList": [
+                {
+                  "id": "call_VlHIPL3JQr6PRjLx0buII0Y8",
+                  "type": "function",
+                  "function": {
+                    "name": "book_appointment",
+                    "arguments": {
+                      "date": "2024-06-03",
+                      "time": "12:00",
+                      "email": "حمزہ قدیر@gmail.com",
+                      "patient_name": "حمزہ قدیر",
+                      "phone_number": "03257030790",
+                      "service_type": "Teeth Cleaning"
+                    }
+                  }
+                }
+              ],
+              "toolWithToolCallList": [
+                {
+                  "type": "function",
+                  "function": {
+                    "name": "book_appointment",
+                    "parameters": {
+                      "type": "object",
+                      "required": [
+                        "patient_name",
+                        "phone_number",
+                        "service_type",
+                        "date",
+                        "time"
+                      ],
+                      "properties": {
+                        "date": {
+                          "type": "string",
+                          "description": "Confirmed appointment date in YYYY-MM-DD format."
+                        },
+                        "time": {
+                          "type": "string",
+                          "description": "Confirmed appointment time in HH:MM format (24-hour)."
+                        },
+                        "email": {
+                          "type": "string",
+                          "description": "Patient's email address. Ask for it if not provided - needed for email confirmation. Optional."
+                        },
+                        "patient_name": {
+                          "type": "string",
+                          "description": "Full name of the patient."
+                        },
+                        "phone_number": {
+                          "type": "string",
+                          "description": "Patient's phone number with country code (e.g. +923001234567)."
+                        },
+                        "service_type": {
+                          "type": "string",
+                          "description": "The confirmed dental service."
+                        }
+                      }
+                    },
+                    "description": "Book a confirmed appointment slot after the patient has agreed to the date, time, and service. Only call this AFTER reading back all details and receiving confirmation from the patient."
+                  },
+                  "server": {
+                    "url": "https://kalisaaa.app.n8n.cloud/webhook/book-appointment",
+                    "timeoutSeconds": 20,
+                    "staticIpAddressesEnabled": false
+                  },
+                  "messages": [
+                    {
+                      "type": "request-start",
+                      "contents": [],
+                      "conditions": [],
+                      "blocking": false
+                    }
+                  ],
+                  "variableExtractionPlan": {
+                    "schema": {
+                      "type": "object",
+                      "required": [],
+                      "properties": {}
+                    }
+                  },
+                  "toolCall": {
+                    "id": "call_VlHIPL3JQr6PRjLx0buII0Y8",
+                    "type": "function",
+                    "function": {
+                      "name": "book_appointment",
+                      "arguments": {
+                        "date": "2024-06-03",
+                        "time": "12:00",
+                        "email": "حمزہ قدیر@gmail.com",
+                        "patient_name": "حمزہ قدیر",
+                        "phone_number": "03257030790",
+                        "service_type": "Teeth Cleaning"
+                      }
+                    }
+                  }
+                }
+              ],
+              "artifact": {
+                "messages": [
+                  {
+                    "role": "system",
+                    "message": "[Identity]\nYou are Sara, a warm, friendly, and highly professional AI receptionist for Sarah Dental Clinic. Your role is to help patients book, reschedule, or cancel appointments and act as the first point of contact for all inbound clinic calls.\n\n[Style]\n- Use a conversational, gentle, and approachable tone.\n- Be concise and upbeat, but calm—never sound rushed.\n- Speak naturally, using occasional pauses or hesitations for a human touch (e.g., “Let me check that for you...”, “Hmm, just a moment...”).\n- Avoid medical advice; if asked, redirect politely to the dentist.\n- If a patient asks about pricing or treatments, say “Our dentist will be happy to discuss that at your visit.”\n\n[Response Guidelines]\n- Always collect and confirm: patient's full name, phone number, selected service, preferred date, and time for all bookings.\n- Use “Monday-Saturday, 9:00 AM to 6:00 PM” as the available clinic hours.\n- Never invent available appointment slots. Always call the 'check_availability' tool befo...",
+                    "time": 1784967622883,
+                    "secondsFromStart": 0
+                  },
+                  {
+                    "role": "bot",
+                    "message": "ہیلو",
+                    "time": 1784967633456,
+                    "endTime": 1784967633456,
+                    "secondsFromStart": 10.258,
+                    "duration": 0,
+                    "source": "",
+                    "assistantName": "Sarah ai Dentist",
+                    "assistantId": "71497680-7fab-4614-9ed5-00f228e9fffb"
+                  },
+                  {
+                    "role": "user",
+                    "message": "اگر",
+                    "time": 1784967637157,
+                    "endTime": 1784967637157,
+                    "secondsFromStart": 13.959,
+                    "duration": 0,
+                    "metadata": {
+                      "wordLevelConfidence": []
+                    }
+                  },
+                  {
+                    "role": "bot",
+                    "message": "تینک یو فر کالنگ سیرا ڈینٹل کلینک۔ This is Sarah, how can I help you today?",
+                    "time": 1784967638102,
+                    "endTime": 1784967638102,
+                    "secondsFromStart": 14.904,
+                    "duration": 0,
+                    "source": "",
+                    "assistantName": "Sarah ai Dentist",
+                    "assistantId": "71497680-7fab-4614-9ed5-00f228e9fffb"
+                  },
+                  {
+                    "role": "user",
+                    "message": "ہلکو.",
+                    "time": 1784967638512,
+                    "endTime": 1784967638512,
+                    "secondsFromStart": 15.314,
+                    "duration": 0,
+                    "metadata": {
+                      "wordLevelConfidence": []
+                    }
+                  },
+                  {
+                    "role": "bot",
+                    "message": "ہلو! آپ کیسے ہیں؟ کیا میں آپ کی مدد کر سکتی ہوں؟",
+                    "time": 1784967643559,
+                    "endTime": 1784967643559,
+                    "secondsFromStart": 20.361,
+                    "duration": 0,
+                    "source": "",
+                    "assistantName": "Sarah ai Dentist",
+                    "assistantId": "71497680-7fab-4614-9ed5-00f228e9fffb"
+                  },
+                  {
+                    "role": "user",
+                    "message": "جی مجھے ایک نئی بکنگ اپائنٹمنٹ۔ بڑھوا دی ہے میرا",
+                    "time": 1784967646549,
+                    "endTime": 1784967657073,
+                    "secondsFromStart": 23.351,
+                    "duration": 0,
+                    "metadata": {
+                      "wordLevelConfidence": []
+                    }
+                  },
+                  {
+                    "role": "bot",
+                    "message": "بالکل، کیا آپ مجھے اپنا پورا نام، فون نمبر اور ای میل ایڈریس بتا سکتے ہیں اور آپ کون سی سروس کی",
+                    "time": 1784967657147,
+                    "endTime": 1784967657147,
+                    "secondsFromStart": 33.949,
+                    "duration": 0,
+                    "source": "",
+                    "assistantName": "Sarah ai Dentist",
+                    "assistantId": "71497680-7fab-4614-9ed5-00f228e9fffb"
+                  },
+                  {
+                    "role": "user",
+                    "message": "میرا نام ہے میرا نام حمزہ قدیر اور میں کروانا چاہتا ہوں۔ دانتوں کی صفائی اور میرا فون نمبر ہے 0325 سیون زیرو? 30790 میرا ای میل ایڈریس ہے. حمزہ قدیر @ جی میل ڈاٹ کام",
+                    "time": 1784967659926,
+                    "endTime": 1784967673650,
+                    "secondsFromStart": 36.728,
+                    "duration": 0,
+                    "metadata": {
+                      "wordLevelConfidence": []
+                    }
+                  },
+                  {
+                    "role": "bot",
+                    "message": "شکریہ",
+                    "time": 1784967674340,
+                    "endTime": 1784967674340,
+                    "secondsFromStart": 51.142,
+                    "duration": 0,
+                    "source": "",
+                    "assistantName": "Sarah ai Dentist",
+                    "assistantId": "71497680-7fab-4614-9ed5-00f228e9fffb"
+                  },
+                  {
+                    "role": "bot",
+                    "message": "شکریہ حمزہ قدیر۔ آپ دانتوں کی صفائی کروانا چاہتے ہیں۔ کیا آپ کو کسی خاص تاریخ اور وقت کی ترجیح ہے؟ یاد رہے کہ ہماری کلینک",
+                    "time": 1784967685772,
+                    "endTime": 1784967685772,
+                    "secondsFromStart": 62.574,
+                    "duration": 0,
+                    "source": "",
+                    "assistantName": "Sarah ai Dentist",
+                    "assistantId": "71497680-7fab-4614-9ed5-00f228e9fffb"
+                  },
+                  {
+                    "role": "bot",
+                    "message": "کی اوقات کار پیر سے ہفتہ تک صبح نو سے شام چھ بجے ہیں۔",
+                    "time": 1784967689634,
+                    "endTime": 1784967689634,
+                    "secondsFromStart": 66.436,
+                    "duration": 0,
+                    "source": "",
+                    "assistantName": "Sarah ai Dentist",
+                    "assistantId": "71497680-7fab-4614-9ed5-00f228e9fffb"
+                  },
+                  {
+                    "role": "user",
+                    "message": "اب مجھے اوویلیبل سلاٹس بتائیں اس ویک کے۔",
+                    "time": 1784967692155,
+                    "endTime": 1784967694951,
+                    "secondsFromStart": 68.957,
+                    "duration": 0,
+                    "metadata": {
+                      "wordLevelConfidence": []
+                    }
+                  },
+                  {
+                    "toolCalls": [
+                      {
+                        "id": "call_rIFy6HM1IQ43VCt5Hz1C3N2v",
+                        "type": "function",
+                        "function": {
+                          "name": "check_availability",
+                          "arguments": "{\n  \"date\": \"2024-06-03\",\n  \"service_type\": \"Teeth Cleaning\"\n}"
+                        }
+                      }
+                    ],
+                    "role": "tool_calls",
+                    "message": "",
+                    "time": 1784967698729,
+                    "secondsFromStart": 75.531
+                  },
+                  {
+                    "role": "bot",
+                    "message": "سمجھ گئی، میں آپ کے لیے اس ہفتے دانتوں کی صفائی کے لیے دستیاب وقت چیک کرتی ہوں۔",
+                    "time": 1784967704668,
+                    "endTime": 1784967704668,
+                    "secondsFromStart": 81.47,
+                    "duration": 0,
+                    "source": "",
+                    "assistantName": "Sarah ai Dentist",
+                    "assistantId": "71497680-7fab-4614-9ed5-00f228e9fffb"
+                  },
+                  {
+                    "role": "tool_call_result",
+                    "time": 1784967705997,
+                    "secondsFromStart": 82.799,
+                    "name": "check_availability",
+                    "result": "Available slots: 09:00, 09:30, 10:00, 10:30, 11:00, 11:30, 12:00, 12:30, 13:00, 13:30, 14:00, 14:30, 15:00, 15:30, 16:00, 16:30, 17:00, 17:30",
+                    "metadata": {},
+                    "toolCallId": "call_rIFy6HM1IQ43VCt5Hz1C3N2v"
+                  },
+                  {
+                    "role": "bot",
+                    "message": "براہ مہربانی ایک لمحہ رکیں۔",
+                    "time": 1784967707334,
+                    "endTime": 1784967707334,
+                    "secondsFromStart": 84.136,
+                    "duration": 0,
+                    "source": "",
+                    "assistantName": "Sarah ai Dentist",
+                    "assistantId": "71497680-7fab-4614-9ed5-00f228e9fffb"
+                  },
+                  {
+                    "role": "bot",
+                    "message": "کے لیے میں نے چیک کر لیا ہے اور آپ کے",
+                    "time": 1784967710624,
+                    "endTime": 1784967710624,
+                    "secondsFromStart": 87.426,
+                    "duration": 0,
+                    "source": "",
+                    "assistantName": "Sarah ai Dentist",
+                    "assistantId": "71497680-7fab-4614-9ed5-00f228e9fffb"
+                  },
+                  {
+                    "role": "bot",
+                    "message": "اس ہفتے دانتوں کی صفائی کے لیے یہ دستیاب وقت ہیں۔",
+                    "time": 1784967714152,
+                    "endTime": 1784967714152,
+                    "secondsFromStart": 90.954,
+                    "duration": 0,
+                    "source": "",
+                    "assistantName": "Sarah ai Dentist",
+                    "assistantId": "71497680-7fab-4614-9ed5-00f228e9fffb"
+                  },
+                  {
+                    "role": "bot",
+                    "message": "صبح نو بجے، صبح نو ساٹھ، صبح دس بجے، صبح دس ساٹھ، دوپہر گیارہ بجے، دوپہر گیارہ ساٹھ، دوپہر بارہ بجے، دوپہر بارہ ساٹھ، دوپہر ایک بجے، دوپہر ایک ساٹھ، دوپہر دو",
+                    "time": 1784967727957,
+                    "endTime": 1784967727957,
+                    "secondsFromStart": 104.759,
+                    "duration": 0,
+                    "source": "",
+                    "assistantName": "Sarah ai Dentist",
+                    "assistantId": "71497680-7fab-4614-9ed5-00f228e9fffb"
+                  },
+                  {
+                    "role": "user",
+                    "message": "مجھے ہفتے دوپہر بارہ بجے کی بکنگ کروانی ہے۔",
+                    "time": 1784967732335,
+                    "endTime": 1784967732335,
+                    "secondsFromStart": 109.137,
+                    "duration": 0,
+                    "metadata": {
+                      "wordLevelConfidence": []
+                    }
+                  },
+                  {
+                    "role": "bot",
+                    "message": "ٹھیک ہے۔",
+                    "time": 1784967737615,
+                    "endTime": 1784967737615,
+                    "secondsFromStart": 114.417,
+                    "duration": 0,
+                    "source": "",
+                    "assistantName": "Sarah ai Dentist",
+                    "assistantId": "71497680-7fab-4614-9ed5-00f228e9fffb"
+                  },
+                  {
+                    "role": "bot",
+                    "message": "تو آپ کی دانتوں کی صفائی کی اپوائنٹمنٹ ہفتے جون کی تیسری تاریخ کو دوپہر بارہ بجے ہو گی۔",
+                    "time": 1784967744698,
+                    "endTime": 1784967744698,
+                    "secondsFromStart": 121.5,
+                    "duration": 0,
+                    "source": "",
+                    "assistantName": "Sarah ai Dentist",
+                    "assistantId": "71497680-7fab-4614-9ed5-00f228e9fffb"
+                  },
+                  {
+                    "role": "bot",
+                    "message": "بس یہ تصدیق کرنے کے لیے، حمزہ قدیر آپ کی دانتوں کی صفائی کی اپوائنٹمنٹ ہفتے، جون کی تیسری تاریخ کو دوپہر 12 بجے. ہوں। کیا میں یہ بک کر دوں?",
+                    "time": 1784967753414,
+                    "endTime": 1784967755779,
+                    "secondsFromStart": 130.216,
+                    "duration": 0,
+                    "source": "",
+                    "assistantName": "Sarah ai Dentist",
+                    "assistantId": "71497680-7fab-4614-9ed5-00f228e9fffb"
+                  },
+                  {
+                    "role": "user",
+                    "message": "یہی بک کردے اپائنٹمنٹ.",
+                    "time": 1784967759248,
+                    "endTime": 1784967759248,
+                    "secondsFromStart": 136.05,
+                    "duration": 0,
+                    "metadata": {
+                      "wordLevelConfidence": []
+                    }
+                  },
+                  {
+                    "toolCalls": [
+                      {
+                        "id": "call_VlHIPL3JQr6PRjLx0buII0Y8",
+                        "type": "function",
+                        "function": {
+                          "name": "book_appointment",
+                          "arguments": "{\n  \"date\": \"2024-06-03\",\n  \"time\": \"12:00\",\n  \"email\": \"حمزہ قدیر@gmail.com\",\n  \"patient_name\": \"حمزہ قدیر\",\n  \"phone_number\": \"03257030790\",\n  \"service_type\": \"Teeth Cleaning\"\n}"
+                        }
+                      }
+                    ],
+                    "role": "tool_calls",
+                    "message": "",
+                    "time": 1784967760639,
+                    "secondsFromStart": 137.441
+                  }
+                ],
+                "messagesOpenAIFormatted": [
+                  {
+                    "role": "system",
+                    "content": "[Identity]\nYou are Sara, a warm, friendly, and highly professional AI receptionist for Sarah Dental Clinic. Your role is to help patients book, reschedule, or cancel appointments and act as the first point of contact for all inbound clinic calls.\n\n[Style]\n- Use a conversational, gentle, and approachable tone.\n- Be concise and upbeat, but calm—never sound rushed.\n- Speak naturally, using occasional pauses or hesitations for a human touch (e.g., “Let me check that for you...”, “Hmm, just a moment...”).\n- Avoid medical advice; if asked, redirect politely to the dentist.\n- If a patient asks about pricing or treatments, say “Our dentist will be happy to discuss that at your visit.”\n\n[Response Guidelines]\n- Always collect and confirm: patient's full name, phone number, selected service, preferred date, and time for all bookings.\n- Use “Monday-Saturday, 9:00 AM to 6:00 PM” as the available clinic hours.\n- Never invent available appointment slots. Always call the 'check_availability' tool befo..."
+                  },
+                  {
+                    "role": "assistant",
+                    "content": "ہیلو"
+                  },
+                  {
+                    "role": "user",
+                    "content": "اگر"
+                  },
+                  {
+                    "role": "assistant",
+                    "content": "تینک یو فر کالنگ سیرا ڈینٹل کلینک۔ This is Sarah, how can I help you today?"
+                  },
+                  {
+                    "role": "user",
+                    "content": "ہلکو."
+                  },
+                  {
+                    "role": "assistant",
+                    "content": "ہلو! آپ کیسے ہیں؟ کیا میں آپ کی مدد کر سکتی ہوں؟"
+                  },
+                  {
+                    "role": "user",
+                    "content": "جی مجھے ایک نئی بکنگ اپائنٹمنٹ۔ بڑھوا دی ہے میرا"
+                  },
+                  {
+                    "role": "assistant",
+                    "content": "بالکل، کیا آپ مجھے اپنا پورا نام، فون نمبر اور ای میل ایڈریس بتا سکتے ہیں اور آپ کون سی سروس کی"
+                  },
+                  {
+                    "role": "user",
+                    "content": "میرا نام ہے میرا نام حمزہ قدیر اور میں کروانا چاہتا ہوں۔ دانتوں کی صفائی اور میرا فون نمبر ہے 0325 سیون زیرو? 30790 میرا ای میل ایڈریس ہے. حمزہ قدیر @ جی میل ڈاٹ کام"
+                  },
+                  {
+                    "role": "assistant",
+                    "content": "شکریہ شکریہ حمزہ قدیر۔ آپ دانتوں کی صفائی کروانا چاہتے ہیں۔ کیا آپ کو کسی خاص تاریخ اور وقت کی ترجیح ہے؟ یاد رہے کہ ہماری کلینک کی اوقات کار پیر سے ہفتہ تک صبح نو سے شام چھ بجے ہیں۔"
+                  },
+                  {
+                    "role": "user",
+                    "content": "اب مجھے اوویلیبل سلاٹس بتائیں اس ویک کے۔"
+                  },
+                  {
+                    "role": "assistant",
+                    "tool_calls": [
+                      {
+                        "id": "call_rIFy6HM1IQ43VCt5Hz1C3N2v",
+                        "type": "function",
+                        "function": {
+                          "name": "check_availability",
+                          "arguments": "{\n  \"date\": \"2024-06-03\",\n  \"service_type\": \"Teeth Cleaning\"\n}"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "role": "tool",
+                    "tool_call_id": "call_rIFy6HM1IQ43VCt5Hz1C3N2v",
+                    "content": "Available slots: 09:00, 09:30, 10:00, 10:30, 11:00, 11:30, 12:00, 12:30, 13:00, 13:30, 14:00, 14:30, 15:00, 15:30, 16:00, 16:30, 17:00, 17:30"
+                  },
+                  {
+                    "role": "assistant",
+                    "content": "سمجھ گئی، میں آپ کے لیے اس ہفتے دانتوں کی صفائی کے لیے دستیاب وقت چیک کرتی ہوں۔ براہ مہربانی ایک لمحہ رکیں۔ کے لیے میں نے چیک کر لیا ہے اور آپ کے اس ہفتے دانتوں کی صفائی کے لیے یہ دستیاب وقت ہیں۔ صبح نو بجے، صبح نو ساٹھ، صبح دس بجے، صبح دس ساٹھ، دوپہر گیارہ بجے، دوپہر گیارہ ساٹھ، دوپہر بارہ بجے، دوپہر بارہ ساٹھ، دوپہر ایک بجے، دوپہر ایک ساٹھ، دوپہر دو"
+                  },
+                  {
+                    "role": "user",
+                    "content": "مجھے ہفتے دوپہر بارہ بجے کی بکنگ کروانی ہے۔"
+                  },
+                  {
+                    "role": "assistant",
+                    "content": "ٹھیک ہے۔ تو آپ کی دانتوں کی صفائی کی اپوائنٹمنٹ ہفتے جون کی تیسری تاریخ کو دوپہر بارہ بجے ہو گی۔ بس یہ تصدیق کرنے کے لیے، حمزہ قدیر آپ کی دانتوں کی صفائی کی اپوائنٹمنٹ ہفتے، جون کی تیسری تاریخ کو دوپہر 12 بجے. ہوں। کیا میں یہ بک کر دوں?"
+                  },
+                  {
+                    "role": "user",
+                    "content": "یہی بک کردے اپائنٹمنٹ."
+                  },
+                  {
+                    "role": "assistant",
+                    "tool_calls": [
+                      {
+                        "id": "call_VlHIPL3JQr6PRjLx0buII0Y8",
+                        "type": "function",
+                        "function": {
+                          "name": "book_appointment",
+                          "arguments": "{\n  \"date\": \"2024-06-03\",\n  \"time\": \"12:00\",\n  \"email\": \"حمزہ قدیر@gmail.com\",\n  \"patient_name\": \"حمزہ قدیر\",\n  \"phone_number\": \"03257030790\",\n  \"service_type\": \"Teeth Cleaning\"\n}"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "role": "tool",
+                    "tool_call_id": "call_VlHIPL3JQr6PRjLx0buII0Y8",
+                    "content": "Tool Result Still Pending But Proceed Further If Possible."
+                  }
+                ],
+                "variables": {
+                  "now": "Jul 25, 2026, 8:20 AM UTC",
+                  "currentDateTime": "Saturday, July 25, 2026 at 8:20 AM UTC",
+                  "date": "Jul 25, 2026 UTC",
+                  "time": "8:20 AM UTC",
+                  "year": "2026",
+                  "month": "July",
+                  "day": "25",
+                  "transport": {
+                    "conversationType": "voice",
+                    "provider": "daily",
+                    "videoRecordingEnabled": false,
+                    "assistantVideoEnabled": false,
+                    "roomDeleteOnUserLeaveEnabled": true,
+                    "callUrl": "https://vapi.daily.co/fUkIlfajc9vkcFnKQJIY"
+                  },
+                  "call": {
+                    "id": "019f985c-7034-7222-8d56-08b2d02f9d7f",
+                    "type": "webCall",
+                    "status": "queued",
+                    "createdAt": "2026-07-25T08:20:22.708Z",
+                    "transport": {
+                      "conversationType": "voice",
+                      "provider": "daily",
+                      "videoRecordingEnabled": false,
+                      "assistantVideoEnabled": false,
+                      "roomDeleteOnUserLeaveEnabled": true,
+                      "callUrl": "https://vapi.daily.co/fUkIlfajc9vkcFnKQJIY"
+                    }
+                  }
+                },
+                "variableValues": {
+                  "now": "Jul 25, 2026, 8:20 AM UTC",
+                  "currentDateTime": "Saturday, July 25, 2026 at 8:20 AM UTC",
+                  "date": "Jul 25, 2026 UTC",
+                  "time": "8:20 AM UTC",
+                  "year": "2026",
+                  "month": "July",
+                  "day": "25",
+                  "transport": {
+                    "conversationType": "voice",
+                    "provider": "daily",
+                    "videoRecordingEnabled": false,
+                    "assistantVideoEnabled": false,
+                    "roomDeleteOnUserLeaveEnabled": true,
+                    "callUrl": "https://vapi.daily.co/fUkIlfajc9vkcFnKQJIY"
+                  },
+                  "call": {
+                    "id": "019f985c-7034-7222-8d56-08b2d02f9d7f",
+                    "type": "webCall",
+                    "status": "queued",
+                    "createdAt": "2026-07-25T08:20:22.708Z",
+                    "transport": {
+                      "conversationType": "voice",
+                      "provider": "daily",
+                      "videoRecordingEnabled": false,
+                      "assistantVideoEnabled": false,
+                      "roomDeleteOnUserLeaveEnabled": true,
+                      "callUrl": "https://vapi.daily.co/fUkIlfajc9vkcFnKQJIY"
+                    }
+                  }
+                }
+              },
+              "call": {
+                "id": "019f985c-7034-7222-8d56-08b2d02f9d7f",
+                "orgId": "335a0db6-0120-4d1a-a51f-d4ff426af5a7",
+                "createdAt": "2026-07-25T08:20:22.708Z",
+                "updatedAt": "2026-07-25T08:20:22.708Z",
+                "type": "webCall",
+                "cost": 0,
+                "monitor": {
+                  "listenUrl": "wss://phone-call-websocket.aws-us-west-2-backend-production1.vapi.ai/019f985c-7034-7222-8d56-08b2d02f9d7f/listen",
+                  "controlUrl": "https://phone-call-websocket.aws-us-west-2-backend-production1.vapi.ai/019f985c-7034-7222-8d56-08b2d02f9d7f/control"
+                },
+                "transport": {
+                  "conversationType": "voice",
+                  "provider": "daily",
+                  "videoRecordingEnabled": false,
+                  "assistantVideoEnabled": false,
+                  "roomDeleteOnUserLeaveEnabled": true,
+                  "callUrl": "https://vapi.daily.co/fUkIlfajc9vkcFnKQJIY"
+                },
+                "webCallUrl": "https://vapi.daily.co/fUkIlfajc9vkcFnKQJIY",
+                "status": "queued",
+                "assistantId": "71497680-7fab-4614-9ed5-00f228e9fffb",
+                "assistantOverrides": {
+                  "clientMessages": [
+                    "transcript",
+                    "hang",
+                    "metadata",
+                    "tool-calls",
+                    "tool-calls-result",
+                    "tool.completed",
+                    "transfer-update",
+                    "user-interrupted",
+                    "status-update",
+                    "assistant.started"
+                  ],
+                  "variableValues": {}
+                }
+              },
+              "assistant": {
+                "id": "71497680-7fab-4614-9ed5-00f228e9fffb",
+                "orgId": "335a0db6-0120-4d1a-a51f-d4ff426af5a7",
+                "name": "Sarah ai Dentist",
+                "voice": {
+                  "version": "2",
+                  "voiceId": "Savannah",
+                  "provider": "vapi"
+                },
+                "createdAt": "2026-07-23T09:46:40.514Z",
+                "updatedAt": "2026-07-23T19:11:49.882Z",
+                "model": {
+                  "model": "gpt-4o-mini",
+                  "toolIds": [
+                    "7aa871e5-68a4-4259-9258-b793ddbd05fb",
+                    "6a79e176-138a-4593-8d7f-7c35a229ab46",
+                    "c35b37a8-0809-4a14-aa4f-0f75ca1d5ec7",
+                    "c8e0a6af-9ef6-4a0f-96e5-8b493b754e64",
+                    "4b7b9b27-0d10-4b48-8cde-bc5528005005",
+                    "74693911-4c89-47b7-907e-cb81d32bc275"
+                  ],
+                  "messages": [
+                    {
+                      "role": "system",
+                      "content": "[Identity]\nYou are Sara, a warm, friendly, and highly professional AI receptionist for Sarah Dental Clinic. Your role is to help patients book, reschedule, or cancel appointments and act as the first point of contact for all inbound clinic calls.\n\n[Style]\n- Use a conversational, gentle, and approachable tone.\n- Be concise and upbeat, but calm—never sound rushed.\n- Speak naturally, using occasional pauses or hesitations for a human touch (e.g., “Let me check that for you...”, “Hmm, just a moment...”).\n- Avoid medical advice; if asked, redirect politely to the dentist.\n- If a patient asks about pricing or treatments, say “Our dentist will be happy to discuss that at your visit.”\n\n[Response Guidelines]\n- Always collect and confirm: patient's full name, phone number, selected service, preferred date, and time for all bookings.\n- Use “Monday-Saturday, 9:00 AM to 6:00 PM” as the available clinic hours.\n- Never invent available appointment slots. Always call the 'check_availability' tool before suggesting or confirming anything.\n- Always read back all details for confirmation before booking: “Just to confirm, [Name], your [Service] appointment on [Date] at [Time]—shall I go ahead and book this?”\n- Present dates as “Monday, March Fourth” and spell out times, such as “three thirty pee em,” for natural speech.\n- Never reference system tools, API names, or technical details in your speech.\n- Avoid numbers where possible; use natural English for dates and times.\n- Always mention at the end of the call that a WhatsApp and email confirmation will be sent.\n\n[Task & Goals]\n1. Greet the caller warmly and offer assistance.\n2. Determine if the caller wants to:\n   a) Book a new appointment\n   b) Reschedule an existing appointment\n   c) Cancel an existing appointment\n   d) Inquire about services provided (redirect as needed)\n3. For new appointment bookings:\n   - Ask for the caller’s name, phone number, and email address.\n   - Ask which service they wish to book (limit to: Checkup, Teeth Cleaning, Filling, Root Canal, Teeth Whitening, Braces Consult, Emergency).\n   - Ask for any date and time preference; confirm clinic hours.\n   - Call 'check_availability' with their preferred date, service, and time.\n   - If available, read the slot details aloud and confirm all information: “Just to confirm, [Name], your [Service] appointment on [Date] at [Time]—shall I go ahead and book this?”\n   - On patient’s approval, call 'book_appointment'.\n   - If not available, offer alternatives by calling 'check_availability' again as needed.\n4. For cancellations or reschedules:\n   - Confirm patient phone number.\n   - Ask if cancelling or rescheduling.\n   - For rescheduling, get the new date and time, confirm service, and use 'cancel_or_reschedule'.\n   - For cancellation, confirm details and use 'cancel_or_reschedule'.\n   - Always confirm completion with the caller.\n5. If the caller asks about pricing, specific treatments, or dentist details, gently state: “Our dentist will be happy to discuss that at your visit.”\n6. Close by stating that a WhatsApp and email confirmation will be sent and offer further help before ending the call.\n\n[Error Handling / Fallback]\n- If the user’s intent is unclear, politely ask clarifying questions (“Could you please tell me which service you’re interested in booking?”).\n- If check_availability or book_appointment tools fail, apologize (“I’m sorry, there was an issue checking the schedule. Can I try again?”) and attempt the request again.\n- If all attempts fail, reassure the patient: “It seems we’re having trouble right now. Would it be alright if a staff member follows up with you soon?”\n- If the caller provides incomplete information, prompt gently to fill gaps.\n- If the system requires a transfer or human intervention, do not send any spoken response—just trigger the transfer.\n\n[Call Closing]\n- Always thank the caller for contacting Sarah Dental Clinic.\n- Remind the patient: “You’ll receive your appointment confirmation by WhatsApp and email.”\n- Ask if there is anything else you can assist with before ending the call.\n- End the conversation politely with a warm goodbye."
+                    }
+                  ],
+                  "provider": "openai",
+                  "knowledgeBase": {
+                    "fileIds": [
+                      "37469910-8051-4482-b7a8-ee2d0f863f7e"
+                    ],
+                    "provider": "google"
+                  },
+                  "tools": [
+                    {
+                      "id": "7aa871e5-68a4-4259-9258-b793ddbd05fb",
+                      "createdAt": "2026-07-23T09:53:35.355Z",
+                      "updatedAt": "2026-07-23T09:54:26.769Z",
+                      "type": "function",
+                      "function": {
+                        "name": "cancel_or_reschedule",
+                        "parameters": {
+                          "type": "object",
+                          "required": [
+                            "action",
+                            "phone_number"
+                          ],
+                          "properties": {
+                            "action": {
+                              "type": "string",
+                              "description": "Whether to cancel or reschedule the appointment. One of: cancel, reschedule."
+                            },
+                            "new_date": {
+                              "type": "string",
+                              "description": "New appointment date in YYYY-MM-DD format. Required for reschedule."
+                            },
+                            "new_time": {
+                              "type": "string",
+                              "description": "New appointment time in HH:MM format. Required for reschedule."
+                            },
+                            "phone_number": {
+                              "type": "string",
+                              "description": "The patient's phone number to look up their booking."
+                            }
+                          }
+                        },
+                        "description": "Cancel or reschedule an existing appointment for the caller."
+                      },
+                      "messages": [
+                        {
+                          "type": "request-start",
+                          "blocking": false
+                        }
+                      ],
+                      "orgId": "335a0db6-0120-4d1a-a51f-d4ff426af5a7",
+                      "server": {
+                        "url": "https://kalisaaa.app.n8n.cloud/webhook/modify-appointment",
+                        "timeoutSeconds": 20,
+                        "staticIpAddressesEnabled": false
+                      },
+                      "variableExtractionPlan": {
+                        "schema": {
+                          "type": "object",
+                          "required": [],
+                          "properties": {}
+                        }
+                      }
+                    },
+                    {
+                      "id": "6a79e176-138a-4593-8d7f-7c35a229ab46",
+                      "createdAt": "2026-07-23T09:50:00.227Z",
+                      "updatedAt": "2026-07-23T09:50:15.936Z",
+                      "type": "transferCall",
+                      "function": {
+                        "name": "transfer_call_tool"
+                      },
+                      "messages": [
+                        {
+                          "type": "request-start",
+                          "blocking": false
+                        }
+                      ],
+                      "orgId": "335a0db6-0120-4d1a-a51f-d4ff426af5a7",
+                      "destinations": []
+                    },
+                    {
+                      "id": "c35b37a8-0809-4a14-aa4f-0f75ca1d5ec7",
+                      "createdAt": "2026-07-23T09:50:19.622Z",
+                      "updatedAt": "2026-07-23T09:50:33.070Z",
+                      "type": "endCall",
+                      "function": {
+                        "name": "end_call_tools",
+                        "parameters": {
+                          "type": "object",
+                          "required": [],
+                          "properties": {}
+                        }
+                      },
+                      "messages": [
+                        {
+                          "type": "request-start",
+                          "blocking": false
+                        }
+                      ],
+                      "orgId": "335a0db6-0120-4d1a-a51f-d4ff426af5a7"
+                    },
+                    {
+                      "id": "c8e0a6af-9ef6-4a0f-96e5-8b493b754e64",
+                      "createdAt": "2026-07-23T09:52:04.658Z",
+                      "updatedAt": "2026-07-23T09:52:56.873Z",
+                      "type": "function",
+                      "function": {
+                        "name": "book_appointment",
+                        "parameters": {
+                          "type": "object",
+                          "required": [
+                            "patient_name",
+                            "phone_number",
+                            "service_type",
+                            "date",
+                            "time"
+                          ],
+                          "properties": {
+                            "date": {
+                              "type": "string",
+                              "description": "Confirmed appointment date in YYYY-MM-DD format."
+                            },
+                            "time": {
+                              "type": "string",
+                              "description": "Confirmed appointment time in HH:MM format (24-hour)."
+                            },
+                            "email": {
+                              "type": "string",
+                              "description": "Patient's email address. Ask for it if not provided - needed for email confirmation. Optional."
+                            },
+                            "patient_name": {
+                              "type": "string",
+                              "description": "Full name of the patient."
+                            },
+                            "phone_number": {
+                              "type": "string",
+                              "description": "Patient's phone number with country code (e.g. +923001234567)."
+                            },
+                            "service_type": {
+                              "type": "string",
+                              "description": "The confirmed dental service."
+                            }
+                          }
+                        },
+                        "description": "Book a confirmed appointment slot after the patient has agreed to the date, time, and service. Only call this AFTER reading back all details and receiving confirmation from the patient."
+                      },
+                      "messages": [
+                        {
+                          "type": "request-start",
+                          "blocking": false
+                        }
+                      ],
+                      "orgId": "335a0db6-0120-4d1a-a51f-d4ff426af5a7",
+                      "server": {
+                        "url": "https://kalisaaa.app.n8n.cloud/webhook/book-appointment",
+                        "timeoutSeconds": 20,
+                        "staticIpAddressesEnabled": false
+                      },
+                      "variableExtractionPlan": {
+                        "schema": {
+                          "type": "object",
+                          "required": [],
+                          "properties": {}
+                        }
+                      }
+                    },
+                    {
+                      "id": "4b7b9b27-0d10-4b48-8cde-bc5528005005",
+                      "createdAt": "2026-07-23T09:50:48.933Z",
+                      "updatedAt": "2026-07-23T09:53:30.479Z",
+                      "type": "function",
+                      "function": {
+                        "name": "check_availability",
+                        "parameters": {
+                          "type": "object",
+                          "required": [
+                            "date"
+                          ],
+                          "properties": {
+                            "date": {
+                              "type": "string",
+                              "description": "The appointment date in YYYY-MM-DD format. If the patient says 'tomorrow' or 'Monday', resolve it to the correct date."
+                            },
+                            "service_type": {
+                              "type": "string",
+                              "description": "The dental service requested. Must be one of: Checkup, Teeth Cleaning, Filling, Root Canal, Teeth Whitening, Braces Consult, Emergency."
+                            },
+                            "time_preference": {
+                              "type": "string",
+                              "description": "Patient's preferred time of day. Optional."
+                            }
+                          }
+                        },
+                        "description": "Check open appointment slots for a given date. Always call this before suggesting times to a patient. Never make up available slots."
+                      },
+                      "messages": [
+                        {
+                          "type": "request-start",
+                          "blocking": false
+                        }
+                      ],
+                      "orgId": "335a0db6-0120-4d1a-a51f-d4ff426af5a7",
+                      "server": {
+                        "url": "https://kalisaaa.app.n8n.cloud/webhook/check-availability",
+                        "timeoutSeconds": 20,
+                        "staticIpAddressesEnabled": false
+                      },
+                      "variableExtractionPlan": {
+                        "schema": {
+                          "type": "object",
+                          "required": [],
+                          "properties": {}
+                        }
+                      }
+                    },
+                    {
+                      "id": "74693911-4c89-47b7-907e-cb81d32bc275",
+                      "createdAt": "2026-07-23T11:24:14.440Z",
+                      "updatedAt": "2026-07-23T11:24:48.968Z",
+                      "type": "gohighlevel.contact.create",
+                      "function": {
+                        "name": "contact_create_tool",
+                        "parameters": {
+                          "type": "object",
+                          "required": [],
+                          "properties": {}
+                        }
+                      },
+                      "messages": [
+                        {
+                          "type": "request-start",
+                          "blocking": false
+                        }
+                      ],
+                      "metadata": {
+                        "customerPhoneEnabled": true
+                      },
+                      "orgId": "335a0db6-0120-4d1a-a51f-d4ff426af5a7"
+                    }
+                  ]
+                },
+                "firstMessage": "Hello! Thank you for calling Sarah Dental Clinic. This is Sara. How can I help you today?",
+                "voicemailMessage": "Please call back when you're available.",
+                "endCallMessage": "Goodbye.",
+                "transcriber": {
+                  "model": "gpt-4o-transcribe",
+                  "language": "ur",
+                  "provider": "openai",
+                  "fallbackPlan": {
+                    "autoFallback": {
+                      "enabled": true
+                    }
+                  }
+                },
+                "clientMessages": [
+                  "transcript",
+                  "hang",
+                  "metadata",
+                  "tool-calls",
+                  "tool-calls-result",
+                  "tool.completed",
+                  "transfer-update",
+                  "user-interrupted",
+                  "status-update",
+                  "assistant.started"
+                ],
+                "metadata": {},
+                "analysisPlan": {
+                  "summaryPlan": {
+                    "enabled": false
+                  },
+                  "successEvaluationPlan": {
+                    "enabled": false
+                  }
+                },
+                "firstMessageInterruptionsEnabled": false
+              }
+            }
+          },
+          "webhookUrl": "https://kalisaaa.app.n8n.cloud/webhook/book-appointment",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook: book-appointment": {
+      "main": [
+        [
+          {
+            "node": "Extract Args",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Args": {
+      "main": [
+        [
+          {
+            "node": "Google Calendar: Create Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar: Create Event": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets: Log Booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets: Log Booking": {
+      "main": [
+        [
+          {
+            "node": "Has Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Email": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Send message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send message": {
+      "main": [
+        [
+          {
+            "node": "Respond: Booking Confirmed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "b313dbd5-3bae-45ae-9d32-3c65c7b20d66",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1ecf7c16de28e9cb51afa73998847b7e3ce52dec276fe111f4fa9de3fbab0e5b"
+  },
+  "nodeGroups": [],
+  "id": "xz1Fszp6rDkp4dTK",
+  "tags": []
+}

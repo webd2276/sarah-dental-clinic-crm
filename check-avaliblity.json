@@ -1,0 +1,128 @@
+{
+  "name": "check-avaliblity",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "check-availability",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "9b269349-d16a-409e-bd2c-da0e60886a68",
+      "name": "Webhook: check-availability",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        -48
+      ],
+      "webhookId": "95565bde-5798-4418-ae13-eb45de690ef6"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "4738b4b306ba3e16c1b5b52253a61426394a3ef0b03d68f1881bcdb885c07d4d@group.calendar.google.com",
+          "mode": "id"
+        },
+        "returnAll": true,
+        "options": {
+          "singleEvents": true
+        }
+      },
+      "id": "efd93098-fe16-4e80-9347-07ca6c3ecb3c",
+      "name": "Google Calendar: Get Events",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [
+        256,
+        -48
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "OmSuq4KaOjjovI0I",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const toolCall = $('Webhook: check-availability').first().json.body.message.toolCalls[0];\nconst date = toolCall.function['arguments'].date;\n\nconst events = items.map(i => i.json).filter(e => {\n  const eventDate = (e.start.dateTime || e.start.date).slice(0, 10);\n  return eventDate === date;\n});\n\nconst busy = events.map(e => ({\n  start: new Date(e.start.dateTime || e.start.date),\n  end: new Date(e.end.dateTime || e.end.date)\n}));\n\nconst slots = [];\nfor (let h = 9; h < 18; h++) {\n  for (const m of [0, 30]) {\n    const slotStart = new Date(`${date}T${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:00`);\n    const slotEnd = new Date(slotStart.getTime() + 30 * 60000);\n    const overlaps = busy.some(b => slotStart < b.end && slotEnd > b.start);\n    if (!overlaps) slots.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);\n  }\n}\n\nreturn [{\n  json: {\n    results: [\n      {\n        toolCallId: toolCall.id,\n        result: slots.length ? `Available slots: ${slots.join(', ')}` : \"No slots available that day.\"\n      }\n    ]\n  }\n}];"
+      },
+      "id": "34d4507b-7c92-4f1f-965b-6d86d1eb135f",
+      "name": "Code: Compute Free Slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "f17450bd-f04c-46b1-a3e8-089640eec5a5",
+      "name": "Respond: Availability",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        768,
+        -48
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook: check-availability": {
+      "main": [
+        [
+          {
+            "node": "Google Calendar: Get Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Calendar: Get Events": {
+      "main": [
+        [
+          {
+            "node": "Code: Compute Free Slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Compute Free Slots": {
+      "main": [
+        [
+          {
+            "node": "Respond: Availability",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "67fd1ca6-30f1-4bb6-a179-2afedbd67485",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1ecf7c16de28e9cb51afa73998847b7e3ce52dec276fe111f4fa9de3fbab0e5b"
+  },
+  "nodeGroups": [],
+  "id": "hER9o5LbZdKmUEAI",
+  "tags": []
+}

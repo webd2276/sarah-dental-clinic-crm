@@ -1,0 +1,125 @@
+{
+  "name": "Sara - Dental Receptionist",
+  "firstMessage": "Hello! Thank you for calling Sarah Dental Clinic. This is Sara. How can I help you today?",
+  "voice": {
+    "provider": "11labs",
+    "voiceId": "REPLACE_WITH_VOICE_ID"
+  },
+  "model": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "temperature": 0.4,
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are Sara, a warm and professional dental receptionist for Sarah Dental Clinic. Your job is to help patients book, reschedule, or cancel appointments over the phone.\n\nClinic hours: Monday-Saturday, 9:00 AM to 6:00 PM.\nServices offered: Checkup, Teeth Cleaning, Filling, Root Canal, Teeth Whitening, Braces Consult, Emergency.\n\nIMPORTANT RULES:\n- NEVER invent availability. Always call check_availability before suggesting slots.\n- Always collect: patient name, phone number, service type, preferred date and time.\n- Always read back all details before confirming: 'Just to confirm, [Name], your [Service] appointment on [Date] at [Time] - shall I go ahead and book this?'\n- If a slot conflict occurs, immediately call check_availability again and offer alternatives.\n- Be conversational, warm, and concise. Avoid medical advice.\n- If the patient asks about pricing or treatment details, say 'Our dentist will be happy to discuss that at your visit.'\n- End every call by confirming the patient will receive a WhatsApp and email confirmation."
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "check_availability",
+          "description": "Check open appointment slots for a given date. Always call this before suggesting times to a patient. Never make up available slots.",
+          "parameters": {
+            "type": "object",
+            "required": ["date"],
+            "properties": {
+              "date": {
+                "type": "string",
+                "description": "The appointment date in YYYY-MM-DD format. If the patient says 'tomorrow' or 'Monday', resolve it to the correct date."
+              },
+              "service_type": {
+                "type": "string",
+                "description": "The dental service requested. Must be one of: Checkup, Teeth Cleaning, Filling, Root Canal, Teeth Whitening, Braces Consult, Emergency."
+              },
+              "time_preference": {
+                "type": "string",
+                "description": "Patient's preferred time of day. Optional."
+              }
+            }
+          }
+        },
+        "server": {
+          "url": "https://YOUR-N8N-INSTANCE/webhook/check-availability"
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "book_appointment",
+          "description": "Book a confirmed appointment slot after the patient has agreed to the date, time, and service. Only call this AFTER reading back all details and receiving confirmation from the patient.",
+          "parameters": {
+            "type": "object",
+            "required": ["patient_name", "phone_number", "service_type", "date", "time"],
+            "properties": {
+              "patient_name": {
+                "type": "string",
+                "description": "Full name of the patient."
+              },
+              "phone_number": {
+                "type": "string",
+                "description": "Patient's phone number with country code (e.g. +923001234567)."
+              },
+              "service_type": {
+                "type": "string",
+                "description": "The confirmed dental service."
+              },
+              "date": {
+                "type": "string",
+                "description": "Confirmed appointment date in YYYY-MM-DD format."
+              },
+              "time": {
+                "type": "string",
+                "description": "Confirmed appointment time in HH:MM format (24-hour)."
+              },
+              "email": {
+                "type": "string",
+                "description": "Patient's email address. Ask for it if not provided - needed for email confirmation. Optional."
+              }
+            }
+          }
+        },
+        "server": {
+          "url": "https://YOUR-N8N-INSTANCE/webhook/book-appointment"
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "cancel_or_reschedule",
+          "description": "Cancel or reschedule an existing appointment for the caller.",
+          "parameters": {
+            "type": "object",
+            "required": ["action", "phone_number"],
+            "properties": {
+              "action": {
+                "type": "string",
+                "description": "Whether to cancel or reschedule the appointment. One of: cancel, reschedule."
+              },
+              "phone_number": {
+                "type": "string",
+                "description": "The patient's phone number to look up their booking."
+              },
+              "new_date": {
+                "type": "string",
+                "description": "New appointment date in YYYY-MM-DD format. Required for reschedule."
+              },
+              "new_time": {
+                "type": "string",
+                "description": "New appointment time in HH:MM format. Required for reschedule."
+              }
+            }
+          }
+        },
+        "server": {
+          "url": "https://YOUR-N8N-INSTANCE/webhook/modify-appointment"
+        }
+      }
+    ]
+  },
+  "endCallFunctionEnabled": true,
+  "endCallPhrases": ["bye", "goodbye", "have a nice day"],
+  "maxDurationSeconds": 600,
+  "interruptionsEnabled": true
+}
