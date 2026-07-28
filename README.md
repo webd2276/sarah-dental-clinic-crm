@@ -31,6 +31,13 @@ Webhook receives the requested date from Vapi, pulls that day's events from Goog
 
 **n8n — Book Appointment workflow**
 Webhook receives the confirmed booking details, creates the Google Calendar event, logs the booking to Google Sheets, then branches on whether an email was provided to send a Gmail and/or WhatsApp confirmation.
+![Reschedule / Cancel workflow](https://raw.githubusercontent.com/webd2276/Sara-Dentist-calling-agent/main/Screenshot%20from%202026-07-25%2014-50-05.png)
+
+**Vapi Assistant dashboard**
+The "Sara" assistant configured in Vapi — model, voice, and the `check_availability` / `book_appointment` / `cancel_or_reschedule` tools wired to the n8n webhooks above.
+
+![Vapi Assistant dashboard](https://raw.githubusercontent.com/webd2276/Sara-Dentist-calling-agent/main/Screenshot%20from%202026-07-25%2014-51-34.png)
+
 
 ![Book Appointment workflow](https://raw.githubusercontent.com/webd2276/Sara-Dentist-calling-agent/main/Screenshot%20from%202026-07-25%2014-49-33.png)
 
