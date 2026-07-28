@@ -1,4 +1,5 @@
 <div align="center">
+<img src="https://github.com/webd2276/sarah-dental-clinic-crm/blob/main/Screenshot%20from%202026-07-28%2014-37-39.png" width="600" alt="Screenshot">
 
 </div>
 
