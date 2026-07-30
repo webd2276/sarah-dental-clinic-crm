@@ -9,15 +9,99 @@ import {
   getPatientById,
   getDashboardStats,
   getActivityLogs,
+  supabase,
 } from '../lib/crm-store';
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, checkCalendarHealth } from '../lib/google-calendar';
 import { checkSheetsHealth } from '../lib/google-sheets';
+import bcrypt from 'bcryptjs';
 
 export const apiRouter = Router();
 
 // Middleware to parse JSON
 apiRouter.use((req, res, next) => {
   next();
+});
+
+/**
+ * POST /api/auth/login
+ */
+apiRouter.post('/auth/login', async (req: Request, res: Response) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ success: false, message: 'Username and password required' });
+    }
+    if (!supabase) {
+      return res.status(500).json({ success: false, message: 'Supabase client not configured' });
+    }
+
+    const { data: user, error } = await supabase
+      .from('admin_users')
+      .select('*')
+      .eq('username', username)
+      .single();
+
+    if (error || !user) {
+      return res.status(401).json({ success: false, message: 'Invalid username or password' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Invalid username or password' });
+    }
+
+    const ipAddress = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '') as string;
+    const userAgent = (req.headers['user-agent'] || '') as string;
+
+    const { data: session, error: sessionError } = await supabase
+      .from('login_sessions')
+      .insert({
+        admin_user_id: user.id,
+        username: user.username,
+        ip_address: ipAddress,
+        user_agent: userAgent
+      })
+      .select()
+      .single();
+
+    if (sessionError || !session) {
+      return res.status(500).json({ success: false, message: 'Failed to create session' });
+    }
+
+    return res.json({ success: true, sessionId: session.id, username: user.username });
+  } catch (err: any) {
+    console.error('[Login Error]', err);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+});
+
+/**
+ * POST /api/auth/logout
+ */
+apiRouter.post('/auth/logout', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.body;
+    if (!sessionId) {
+      return res.status(400).json({ success: false, message: 'Session ID required' });
+    }
+    if (!supabase) {
+      return res.status(500).json({ success: false, message: 'Supabase client not configured' });
+    }
+
+    const { error } = await supabase
+      .from('login_sessions')
+      .update({ logout_at: new Date().toISOString(), is_active: false })
+      .eq('id', sessionId);
+
+    if (error) {
+      return res.status(500).json({ success: false, message: 'Failed to update session' });
+    }
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error('[Logout Error]', err);
+    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
 });
 
 /**
