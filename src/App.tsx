@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
-import { DashboardView } from './views/DashboardView';
 import { BookingsView } from './views/BookingsView';
+import { CalendarView } from './views/CalendarView';
 import { PatientsView } from './views/PatientsView';
 import { SetupGuideView } from './views/SetupGuideView';
 import { LoginView } from './views/LoginView';
@@ -92,6 +92,10 @@ export default function App() {
               onOpenNewBooking={() => setIsNewBookingOpen(true)}
               onOpenBookingDetail={(b) => setSelectedBooking(b)}
             />
+          )}
+
+          {activeTab === 'calendar' && (
+            <CalendarView />
           )}
 
           {activeTab === 'patients' && (

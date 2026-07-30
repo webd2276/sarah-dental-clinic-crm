@@ -2,6 +2,7 @@ import React from 'react';
 import {
   LayoutDashboard,
   Calendar,
+  CalendarDays,
   Users,
   Settings,
   Zap,
@@ -17,6 +18,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'bookings', label: 'Bookings', icon: Calendar },
+    { id: 'calendar', label: 'Calendar', icon: CalendarDays },
     { id: 'patients', label: 'Patients', icon: Users },
     { id: 'setup-guide', label: 'Setup Guide', icon: Settings },
   ];
