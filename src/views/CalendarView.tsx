@@ -18,7 +18,7 @@ export const CalendarView: React.FC = () => {
       {/* Calendar Iframe Card */}
       <div className="bg-white border border-slate-200 rounded-sm shadow-xs overflow-hidden p-4">
         <iframe 
-          src="https://calendar.google.com/calendar/embed?height=600&wkst=1&ctz=UTC&title=sarah%20dental%20clinic%20calendar&src=NDczOGI0YjMwNmJhM2UxNmMxYjViNTIyNTNhNjE0MjYzOTRhM2VmMGIwM2Q2OGYxODgxYmNkYjg4NWMwN2Q0ZEBncm91cC5jYWxlbmRhci5nb29nbGUuY29t&color=%23f6bf26" 
+          src="https://calendar.google.com/calendar/embed?src=4738b4b306ba3e16c1b5b52253a61426394a3ef0b03d68f1881bcdb885c07d4d%40group.calendar.google.com&ctz=UTC" 
           style={{ border: 'solid 1px #777' }} 
           width="100%" 
           height="700" 
@@ -30,3 +30,4 @@ export const CalendarView: React.FC = () => {
     </div>
   );
 };
+                                                                                                                                                                                                          
