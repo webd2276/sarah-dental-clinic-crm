@@ -103,6 +103,18 @@ apiRouter.post('/webhooks/n8n-sync', async (req: Request, res: Response) => {
       }
 
       logDesc = `${validService} rescheduled for ${date || booking.appointment_date} at ${time || booking.appointment_time}`;
+
+      if (booking && booking.google_calendar_event_id) {
+        try {
+          await updateCalendarEvent(booking.google_calendar_event_id, {
+            summary: `${validService} - ${patient_name}`,
+            startDate: date || booking.appointment_date,
+            startTime: time || booking.appointment_time,
+          });
+        } catch (err: any) {
+          console.error('[Google Calendar] Failed to update event on webhook sync:', err);
+        }
+      }
     } else if (action === 'cancelled') {
       logAction = 'booking_cancelled';
       if (booking_id) {
@@ -127,9 +139,32 @@ apiRouter.post('/webhooks/n8n-sync', async (req: Request, res: Response) => {
       }
 
       logDesc = `${validService} booking cancelled by patient`;
+
+      if (booking && booking.google_calendar_event_id) {
+        try {
+          await deleteCalendarEvent(booking.google_calendar_event_id);
+        } catch (err: any) {
+          console.error('[Google Calendar] Failed to delete event on webhook sync:', err);
+        }
+      }
     } else {
       // action = 'created' or default
       logAction = 'booking_created';
+
+      let finalEventId = google_calendar_event_id;
+      try {
+        const calResult = await createCalendarEvent({
+          summary: `${validService} - ${patient_name}`,
+          description: `Phone: ${phone_number}${email ? ` | Email: ${email}` : ''}`,
+          startDate: date || new Date().toISOString().split('T')[0],
+          startTime: time || '10:00',
+          durationMinutes: 45,
+        });
+        finalEventId = calResult.id;
+      } catch (err: any) {
+        console.error('[Google Calendar] Failed to create event on webhook sync:', err);
+      }
+
       booking = await createBooking({
         patient_id: patient.id,
         service_type: validService,
@@ -137,7 +172,7 @@ apiRouter.post('/webhooks/n8n-sync', async (req: Request, res: Response) => {
         appointment_time: time || '10:00',
         channel: channelType,
         status: 'confirmed',
-        google_calendar_event_id,
+        google_calendar_event_id: finalEventId,
         notes,
       });
 
