@@ -15,8 +15,12 @@ import { WebhookTesterModal } from './components/WebhookTesterModal';
 import type { Booking } from './lib/crm-store';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [userEmail, setUserEmail] = useState<string | null>('Dr. Sarah Miller');
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('crm_username') ? 'dashboard' : 'login';
+  });
+  const [userEmail, setUserEmail] = useState<string | null>(() => {
+    return localStorage.getItem('crm_username');
+  });
 
   // Modals
   const [isNewBookingOpen, setIsNewBookingOpen] = useState(false);
@@ -36,9 +40,24 @@ export default function App() {
     setIsNewBookingOpen(true);
   };
 
-  const handleLogout = () => {
-    setUserEmail(null);
-    setActiveTab('login');
+  const handleLogout = async () => {
+    try {
+      const sessionId = localStorage.getItem('crm_session_id');
+      if (sessionId) {
+        await fetch('/api/auth/logout', { 
+          method: 'POST', 
+          headers: {'Content-Type': 'application/json'}, 
+          body: JSON.stringify({ sessionId }) 
+        });
+      }
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      localStorage.removeItem('crm_session_id');
+      localStorage.removeItem('crm_username');
+      setUserEmail(null);
+      setActiveTab('login');
+    }
   };
 
   const handleLoginSuccess = (email: string) => {

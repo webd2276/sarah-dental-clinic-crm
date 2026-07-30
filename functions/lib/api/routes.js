@@ -1,14 +1,90 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.apiRouter = void 0;
 const express_1 = require("express");
 const crm_store_1 = require("../lib/crm-store");
 const google_calendar_1 = require("../lib/google-calendar");
 const google_sheets_1 = require("../lib/google-sheets");
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
 exports.apiRouter = (0, express_1.Router)();
 // Middleware to parse JSON
 exports.apiRouter.use((req, res, next) => {
     next();
+});
+/**
+ * POST /api/auth/login
+ */
+exports.apiRouter.post('/auth/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        if (!username || !password) {
+            return res.status(400).json({ success: false, message: 'Username and password required' });
+        }
+        if (!crm_store_1.supabase) {
+            return res.status(500).json({ success: false, message: 'Supabase client not configured' });
+        }
+        const { data: user, error } = await crm_store_1.supabase
+            .from('admin_users')
+            .select('*')
+            .eq('username', username)
+            .single();
+        if (error || !user) {
+            return res.status(401).json({ success: false, message: 'Invalid username or password' });
+        }
+        const isMatch = await bcryptjs_1.default.compare(password, user.password_hash);
+        if (!isMatch) {
+            return res.status(401).json({ success: false, message: 'Invalid username or password' });
+        }
+        const ipAddress = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '');
+        const userAgent = (req.headers['user-agent'] || '');
+        const { data: session, error: sessionError } = await crm_store_1.supabase
+            .from('login_sessions')
+            .insert({
+            admin_user_id: user.id,
+            username: user.username,
+            ip_address: ipAddress,
+            user_agent: userAgent
+        })
+            .select()
+            .single();
+        if (sessionError || !session) {
+            return res.status(500).json({ success: false, message: 'Failed to create session' });
+        }
+        return res.json({ success: true, sessionId: session.id, username: user.username });
+    }
+    catch (err) {
+        console.error('[Login Error]', err);
+        return res.status(500).json({ success: false, message: 'Internal Server Error' });
+    }
+});
+/**
+ * POST /api/auth/logout
+ */
+exports.apiRouter.post('/auth/logout', async (req, res) => {
+    try {
+        const { sessionId } = req.body;
+        if (!sessionId) {
+            return res.status(400).json({ success: false, message: 'Session ID required' });
+        }
+        if (!crm_store_1.supabase) {
+            return res.status(500).json({ success: false, message: 'Supabase client not configured' });
+        }
+        const { error } = await crm_store_1.supabase
+            .from('login_sessions')
+            .update({ logout_at: new Date().toISOString(), is_active: false })
+            .eq('id', sessionId);
+        if (error) {
+            return res.status(500).json({ success: false, message: 'Failed to update session' });
+        }
+        return res.json({ success: true });
+    }
+    catch (err) {
+        console.error('[Logout Error]', err);
+        return res.status(500).json({ success: false, message: 'Internal Server Error' });
+    }
 });
 /**
  * POST /api/webhooks/n8n-sync
