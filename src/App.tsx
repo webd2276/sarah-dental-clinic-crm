@@ -6,6 +6,7 @@ import { CalendarView } from './views/CalendarView';
 import { PatientsView } from './views/PatientsView';
 import { SetupGuideView } from './views/SetupGuideView';
 import { LoginView } from './views/LoginView';
+import { DashboardView } from './views/DashboardView';
 
 import { NewBookingModal } from './components/NewBookingModal';
 import { BookingDetailModal } from './components/BookingDetailModal';
