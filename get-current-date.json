@@ -1,0 +1,90 @@
+{
+  "name": "get-current-date",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "get-current-date",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f4cf69c9-0b8c-4dc8-be4a-c69b7025ce80",
+      "name": "Webhook: get-current-date",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        64
+      ],
+      "webhookId": "c2f5a3b1-2d4e-5f6a-9b7c-8d9e0f1a2b3c"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $('Webhook: get-current-date').first().json.body;\n\n// Support both Vapi tool-call format and plain/manual testing (curl) calls\nconst toolCall = body?.message?.toolCalls?.[0];\nconst toolCallId = toolCall ? toolCall.id : 'manual-test';\n\nconst now = new Date();\n\n// Convert to Pakistan Standard Time (UTC+5)\nconst pkTime = new Date(now.getTime() + (5 * 60 * 60 * 1000));\n\nconst dateStr = pkTime.toISOString().split('T')[0];\nconst timeStr = pkTime.toISOString().split('T')[1].slice(0, 5);\nconst dayName = pkTime.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });\nconst monthName = pkTime.toLocaleDateString('en-US', { month: 'long', timeZone: 'UTC' });\nconst dayNum = pkTime.getUTCDate();\nconst year = pkTime.getUTCFullYear();\n\nconst friendly = `Today is ${dayName}, ${monthName} ${dayNum}, ${year}. The current time is ${timeStr} Pakistan Standard Time.`;\n\nreturn [{\n  json: {\n    results: [\n      {\n        toolCallId: toolCallId,\n        result: friendly\n      }\n    ],\n    date: dateStr,\n    time: timeStr,\n    day_of_week: dayName,\n    timezone: 'Asia/Karachi'\n  }\n}];"
+      },
+      "id": "f980c289-81a1-43d4-9328-a6f3dcaac4a5",
+      "name": "Code: Compute Current Date",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "9f9576c0-ceed-4670-8104-1bd59c85adb8",
+      "name": "Respond: Current Date",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        384,
+        64
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook: get-current-date": {
+      "main": [
+        [
+          {
+            "node": "Code: Compute Current Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Compute Current Date": {
+      "main": [
+        [
+          {
+            "node": "Respond: Current Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "bca1dae6-ff2b-4ef6-a3e4-44be6f0c5595",
+  "meta": {
+    "instanceId": "1ecf7c16de28e9cb51afa73998847b7e3ce52dec276fe111f4fa9de3fbab0e5b"
+  },
+  "nodeGroups": [],
+  "id": "b6mUcceG2lBYFnXp",
+  "tags": []
+}
